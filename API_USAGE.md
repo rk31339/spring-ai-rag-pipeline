@@ -13,20 +13,26 @@ This Spring AI RAG (Retrieval Augmented Generation) application provides documen
 
 ### Components
 
-1. **DocumentIngestionService**: Handles document upload, validation, and chunking
-2. **ChunkingService**: Intelligent text chunking with overlapping windows
-3. **RagQueryService**: RAG query processing with vector similarity search
-4. **VectorStore (PgVector)**: Stores document embeddings for similarity search
-5. **EmbeddingModel**: Generates embeddings for documents and queries
-6. **ChatClient**: LLM integration for answer generation
+1. **DocumentIngestionService**: Handles document upload, validation, text extraction, and chunking
+2. **DocumentRegistryService**: Tracks uploaded documents, detects duplicates via content hashing
+3. **ChunkingService**: Intelligent text chunking with overlapping windows (1500 char chunks)
+4. **RagQueryService**: RAG query processing with vector similarity search
+5. **VectorStore (PgVector)**: Stores document embeddings for similarity search
+6. **EmbeddingModel**: Generates embeddings for documents and queries
+7. **ChatClient**: LLM integration for answer generation
+8. **Document Readers**: Format-specific text extraction (PDF, Word, Excel, CSV, JSON, Text)
 
 ### RAG Flow
 
 **Document Ingestion:**
-- Upload documents → Validate → Extract content → Chunk into segments → Generate embeddings → Store in vector database
+- Upload documents → Validate → Extract content → Calculate content hash → Check for duplicates → Chunk into segments → Generate embeddings → Store in vector database → Register in document registry
 
 **Query Processing:**
 - User query → Generate query embedding → Similarity search in vector store → Retrieve top-K relevant chunks → Build context → Generate answer using LLM
+
+**Duplicate Handling:**
+- Same filename + same content → Skip (return cached chunk count)
+- Same filename + different content → Delete old chunks, ingest new version (upsert behavior)
 
 ## API Endpoints
 
@@ -37,14 +43,18 @@ This Spring AI RAG (Retrieval Augmented Generation) application provides documen
 **Content-Type**: `multipart/form-data`
 
 **Parameters:**
-- `files`: Array of files (`.md`, `.txt`, `.markdown`)
+- `files`: Array of files
+  - **Text formats**: `.txt`, `.md`, `.markdown`
+  - **Office documents**: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`
+  - **Data formats**: `.csv`, `.json`
 - Max file size: 10 MB per file
 
 **Example Request:**
 ```bash
 curl -X POST http://localhost:8080/api/documents/upload \
   -F "files=@document1.md" \
-  -F "files=@document2.txt"
+  -F "files=@report.pdf" \
+  -F "files=@data.xlsx"
 ```
 
 **Example Response:**
@@ -190,32 +200,67 @@ Load the required models:
 
 Application starts on `http://localhost:8080`
 
+## Database Schema
+
+The application requires a `document_registry` table. Create it manually:
+
+```sql
+CREATE TABLE document_registry (
+    document_id UUID PRIMARY KEY,
+    filename VARCHAR(500) NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    file_size BIGINT NOT NULL,
+    upload_date TIMESTAMP NOT NULL,
+    last_modified TIMESTAMP NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    CONSTRAINT uk_document_registry_filename UNIQUE (filename)
+);
+
+CREATE INDEX idx_document_registry_filename ON document_registry(filename);
+CREATE INDEX idx_document_registry_content_hash ON document_registry(content_hash);
+```
+
 ## Project Structure
 
 ```
 src/main/java/com/rk/ai/rag/
 ├── config/
-│   └── VectorStoreConfig.java          # Spring AI auto-configuration
+│   └── VectorStoreConfig.java              # Spring AI configuration
 ├── controller/
-│   └── DocumentController.java         # REST API endpoints
+│   └── DocumentController.java             # REST API endpoints
 ├── service/
-│   ├── DocumentIngestionService.java   # Document processing
-│   ├── ChunkingService.java           # Text chunking
-│   └── RagQueryService.java           # RAG queries
+│   ├── DocumentIngestionService.java       # Document processing orchestration
+│   ├── DocumentRegistryService.java        # Document tracking & deduplication
+│   ├── ChunkingService.java                # Text chunking (1500 char chunks)
+│   └── RagQueryService.java                # RAG queries
+├── reader/
+│   ├── DocumentReader.java                 # Base interface
+│   ├── PdfDocumentReader.java              # PDF text extraction
+│   ├── WordDocumentReader.java             # Word (.doc, .docx)
+│   ├── ExcelDocumentReader.java            # Excel (.xls, .xlsx)
+│   ├── CsvDocumentReader.java              # CSV parsing
+│   ├── JsonDocumentReader.java             # JSON parsing
+│   └── TextDocumentReader.java             # Plain text & markdown
 ├── model/
-│   ├── UploadResponse.java
-│   ├── QueryRequest.java
-│   └── QueryResponse.java
+│   ├── DocumentRegistry.java               # JPA entity for tracking
+│   ├── UploadResponse.java                 # Upload response DTO
+│   ├── QueryRequest.java / QueryResponse.java
+│   └── SearchRequest.java / SearchResponse.java
+├── repository/
+│   └── DocumentRegistryRepository.java     # JPA repository
 └── exception/
-    └── DocumentProcessingException.java
+    └── DocumentProcessingException.java    # Stage-aware exceptions
 ```
 
 ## Summary
 
 This RAG implementation provides:
-- ✅ Document ingestion with validation
-- ✅ Intelligent chunking with semantic boundaries  
+- ✅ Multi-format document ingestion (PDF, Word, Excel, CSV, JSON, Text, Markdown)
+- ✅ Document registry with SHA-256 content hashing for duplicate detection
+- ✅ Automatic document upsert (replaces old version on content change)
+- ✅ Intelligent chunking with semantic boundaries (1500 char chunks, 200 char overlap)
 - ✅ Vector embeddings in PostgreSQL/pgvector
-- ✅ Similarity search for document retrieval
+- ✅ Similarity search for document retrieval (with/without LLM)
 - ✅ LLM-based answer generation with context
-- ✅ RESTful API for upload and query
+- ✅ RESTful API for upload, query, and search
+- ✅ Stage-aware error handling and detailed logging

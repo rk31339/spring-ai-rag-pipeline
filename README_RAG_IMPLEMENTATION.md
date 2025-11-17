@@ -14,16 +14,24 @@ This implementation provides a production-ready document ingestion pipeline for 
 
 ### 3. Service Layer
 - **ChunkingService.java** - Smart text chunking with:
-  - Semantic paragraph-based chunking (1000 chars/chunk)
+  - Semantic paragraph-based chunking (1500 chars/chunk)
   - 200-character overlap to preserve context
   - Special markdown handling (preserves headers and structure)
-  
-- **DocumentIngestionService.java** (requires manual completion) - Orchestrates:
-  - File validation (10MB limit, .md/.txt/.markdown only)
-  - Text extraction
-  - Document chunking
-  - Embedding generation
-  - Vector storage
+
+- **DocumentIngestionService.java** ✅ **FULLY IMPLEMENTED** - Orchestrates:
+  - File validation (10MB limit, supports: .txt, .md, .markdown, .pdf, .doc, .docx, .xls, .xlsx, .csv, .json)
+  - Text extraction using format-specific readers
+  - SHA-256 content hashing for duplicate detection
+  - Document chunking with metadata enrichment
+  - Embedding generation via VectorStore
+  - Vector storage in PostgreSQL/pgvector
+  - Document registry tracking
+
+- **DocumentRegistryService.java** - Document tracking and deduplication:
+  - Maintains registry of uploaded documents in PostgreSQL
+  - Detects duplicates via filename and content hash
+  - Automatic upsert on content change
+  - Deletion management for old document versions
 
 ### 4. Exception Handling
 - **DocumentProcessingException.java** - Stage-aware error tracking
@@ -44,7 +52,7 @@ User Upload → Controller → IngestionService → ChunkingService → VectorSt
 1. **Smart Chunking**
    - Respects semantic boundaries (paragraphs, markdown sections)
    - Overlapping windows prevent context loss
-   - Optimal chunk size (1000 chars ≈ 500-1000 tokens)
+   - Optimal chunk size (1500 chars ≈ 750-1500 tokens)
 
 2. **Metadata Enrichment**
    - Filename, upload date, file size
@@ -110,28 +118,56 @@ curl -X POST http://localhost:8080/api/documents/upload \
 3. **Database Configuration**
    - Update `application.properties` with your PostgreSQL credentials
 
-## Next Steps
+## Database Setup
 
-1. **Complete DocumentIngestionService** - See implementation below
-2. **Initialize Database** - Ensure pgvector extension is installed
-3. **Start LLM Server** - Configure embedding model
-4. **Test Upload** - Use sample markdown/text files
-5. **Implement Query** - Build RAG query endpoint (Phase 2)
+Create the `document_registry` table manually:
 
-## Manual Implementation Required
+```sql
+CREATE TABLE document_registry (
+    document_id UUID PRIMARY KEY,
+    filename VARCHAR(500) NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    file_size BIGINT NOT NULL,
+    upload_date TIMESTAMP NOT NULL,
+    last_modified TIMESTAMP NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    CONSTRAINT uk_document_registry_filename UNIQUE (filename)
+);
 
-Due to technical issues, the DocumentIngestionService needs to be completed manually. Create the file with the following implementation:
+CREATE INDEX idx_document_registry_filename ON document_registry(filename);
+CREATE INDEX idx_document_registry_content_hash ON document_registry(content_hash);
+```
 
-**Location**: `src/main/java/com/rk/ai/rag/service/DocumentIngestionService.java`
+## Getting Started
 
-**Key Methods**:
-- `ingestDocuments(MultipartFile[] files)` - Main entry point
-- `validateFile(MultipartFile file)` - File validation
-- `extractContent(MultipartFile file)` - UTF-8 text extraction
-- `chunkDocument(String content, ...)` - Delegates to ChunkingService
-- `storeChunks(List<Document> chunks, ...)` - Stores in vector DB
+1. **Initialize Database**
+   - Ensure pgvector extension is installed: `CREATE EXTENSION IF NOT EXISTS vector;`
+   - Create the `document_registry` table (SQL above)
 
-The service should inject `VectorStore` and `ChunkingService` dependencies and implement the complete pipeline as outlined in the design.
+2. **Start LLM Server** - Configure embedding model
+   - LM Studio at http://127.0.0.1:1234
+   - Load embedding model: `text-embedding-nomic-embed-text-v2-moe`
+
+3. **Build and Run**
+   ```bash
+   ./gradlew build
+   ./gradlew bootRun
+   ```
+
+4. **Test Upload** - Upload various document formats
+   ```bash
+   curl -X POST http://localhost:8080/api/documents/upload \
+     -F "files=@test.pdf" \
+     -F "files=@data.xlsx" \
+     -F "files=@notes.md"
+   ```
+
+5. **Query Documents** - Use RAG query endpoint
+   ```bash
+   curl -X POST http://localhost:8080/api/documents/query \
+     -H "Content-Type: application/json" \
+     -d '{"query": "What is this about?", "topK": 5}'
+   ```
 
 ## Testing
 
@@ -145,15 +181,32 @@ The service should inject `VectorStore` and `ChunkingService` dependencies and i
 
 ## Troubleshooting
 
-- **Embedding failures**: Check LLM server is running
-- **Database errors**: Verify pgvector extension installed
-- **File upload limits**: Default 10MB, adjust MAX_FILE_SIZE constant
-- **Unsupported file types**: Only .md, .txt, .markdown allowed
+- **Embedding failures**: Check LLM server is running at http://127.0.0.1:1234
+- **Database errors**:
+  - Verify pgvector extension installed
+  - Ensure `document_registry` table exists
+  - Check PostgreSQL connection in `application.properties`
+- **File upload limits**: Default 10MB, adjust MAX_FILE_SIZE constant in DocumentIngestionService
+- **Unsupported file types**: Supported formats: .txt, .md, .markdown, .pdf, .doc, .docx, .xls, .xlsx, .csv, .json
+- **Duplicate detection**: Files with same name and content are skipped; same name but different content triggers update
+
+## Features Implemented
+
+✅ Multi-format document support (PDF, Word, Excel, CSV, JSON, Text, Markdown)
+✅ Document registry with duplicate detection via SHA-256 hashing
+✅ Automatic document upsert (content change detection)
+✅ Intelligent semantic chunking (1500 char chunks, 200 char overlap)
+✅ Stage-aware error handling
+✅ Comprehensive logging
+✅ RESTful API with upload, query, and search endpoints
 
 ## Future Enhancements
 
 - Async processing for large batches
-- Document deletion/update APIs
-- Advanced markdown parsing (code blocks, tables)
+- Document deletion API endpoint
+- PowerPoint (.ppt, .pptx) support
+- HTML/XML file parsing
+- Compressed archive support (.zip)
+- Image OCR for scanned PDFs
+- Advanced table extraction from PDFs
 - Hybrid search (keyword + vector)
-- Query endpoint with RAG implementation
