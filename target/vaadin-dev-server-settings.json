@@ -1,0 +1,17 @@
+{
+  "frontendFolder": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/./src/main/frontend",
+  "themeFolder": "themes",
+  "themeResourceFolder": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/./src/main/frontend/generated/jar-resources",
+  "staticOutput": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/classes/META-INF/VAADIN/webapp/VAADIN/static",
+  "generatedFolder": "generated",
+  "statsOutput": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/classes/META-INF/VAADIN/config",
+  "frontendBundleOutput": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/classes/META-INF/VAADIN/webapp",
+  "devBundleOutput": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/dev-bundle/webapp",
+  "devBundleStatsOutput": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/dev-bundle/config",
+  "jarResourcesFolder": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/./src/main/frontend/generated/jar-resources",
+  "themeName": "",
+  "clientServiceWorkerSource": "/Users/yusufkhan/WorkSpace/JavaProjects/Spring-AI/spring-ai-rag-demo/target/sw.ts",
+  "pwaEnabled": false,
+  "offlineEnabled": false,
+  "offlinePath": "'offline.html'"
+}

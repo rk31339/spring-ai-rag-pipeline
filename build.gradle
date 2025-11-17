@@ -1,0 +1,89 @@
+// —— Plugins —————————————————————————————————————————————————————————————
+// Core plugins for building a Spring Boot application
+plugins {
+    id 'java'                                      // Enables Java compilation and test
+    id 'org.springframework.boot' version '3.5.7' // Spring Boot plugin: builds & runs app [[2]]
+    id 'io.spring.dependency-management' version '1.1.7' // Manages dependency versions (e.g., avoids version conflicts)
+}
+
+// —— Project Metadata ———————————————————————————————————————————————————
+group = 'com.rk.ai'                     // Maven-style group ID (usually your domain/org in reverse)
+version = '0.0.1-SNAPSHOT'              // Current version: SNAPSHOT means "in development"
+description = 'Demo project for Spring Boot-RAG'  // Human-readable description
+
+// —— Java Setup —————————————————————————————————————————————————————————
+java {
+    toolchain {
+        // Use Java 21 to compile and run — required for Spring Boot 3.5.x [[3]]
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+// —— Repositories ———————————————————————————————————————————————————————
+// Where Gradle looks for libraries (JARs)
+repositories {
+    mavenCentral()  // Primary source: official Maven Central repo
+
+    // Spring Milestone & Snapshot repos (needed for pre-release Spring AI libraries)
+    maven { url 'https://repo.spring.io/milestone' }
+    maven { url 'https://repo.spring.io/snapshot' }
+
+    // Sonatype Central Snapshots (fallback for very new/early libraries)
+    maven {
+        name = 'Central Portal Snapshots'
+        url = 'https://central.sonatype.com/repository/maven-snapshots/'
+    }
+}
+
+// —— Custom Properties ——————————————————————————————————————————————————
+ext {
+    // Spring AI is still in pre-release, so we use a SNAPSHOT version
+    // 2.0.0-SNAPSHOT enables latest RAG & PGVectorStore features
+    set('springAiVersion', "2.0.0-SNAPSHOT")
+}
+
+// —— Dependencies ——————————————————————————————————————————————————————
+dependencies {
+    // Web support (REST controllers, embedded Tomcat)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    
+    // JPA and PostgreSQL for document registry
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.postgresql:postgresql'
+    
+    // Vaadin for UI
+    implementation 'com.vaadin:vaadin-spring-boot-starter:24.5.7'
+
+    // Spring AI: OpenAI-compatible API (works with OpenAI Models:GPT-4, local LLMs like your qwen on :1234)
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+    // Vector store advisors for RAG and chat memory using vector stores (e.g., for adding context to prompts)
+    implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
+
+    // Spring AI starter for integrating with the pgvector extension for PostgreSQL as a vector store
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+
+    // Document parsing libraries
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3'  // PDF text extraction
+    implementation 'org.apache.poi:poi:5.3.0'  // Excel (.xls) support
+    implementation 'org.apache.poi:poi-ooxml:5.3.0'  // Excel (.xlsx) and Word (.docx) support
+    implementation 'org.apache.poi:poi-scratchpad:5.3.0'  // Word (.doc) support
+    implementation 'com.opencsv:opencsv:5.9'  // CSV parsing
+    
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'  // JUnit, Mockito, etc.
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'  // Required for running tests in some IDEs
+}
+
+// —— Dependency Management ————————————————————————————————————————————
+// Import Spring AI's Bill of Materials (BOM) to auto-align all Spring AI lib versions
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+    }
+}
+
+// —— Test Configuration ——————————————————————————————————————————————————
+tasks.named('test') {
+    useJUnitPlatform()  // Enables JUnit 5 (Jupiter) tests
+}
